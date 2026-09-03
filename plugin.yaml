@@ -1,0 +1,10 @@
+name: hermes-security-workbench
+version: 0.1.0
+description: "Modular security research workbench — cases, scoped targets, job engine, safety-classified modules with normalized results and evidence."
+author: "Professor, Hermes Agent"
+platforms: [linux, macos, windows]
+provides_tools:
+  - workbench_health
+  - workbench_case
+  - workbench_job
+  - workbench_portscan

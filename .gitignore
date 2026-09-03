@@ -1,0 +1,14 @@
+# Runtime and generated artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+*.db
+*.sqlite
+*.sqlite3
+logs/
+
+# Agent-local state
+.claude/
+.codex/

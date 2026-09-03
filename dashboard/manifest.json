@@ -1,0 +1,8 @@
+{
+  "name": "hermes-security-workbench",
+  "label": "Security Workbench",
+  "description": "A modular security research workbench: cases, scoped targets, a job engine, and safety-classified modules (recon, OSINT, network, web, files, crypto, forensics). Passive/safe-active first; lab-only off by default.",
+  "icon": "Shield",
+  "version": "0.1.0",
+  "api": "plugin_api.py"
+}
