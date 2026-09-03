@@ -22,12 +22,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import importlib.util
 import ipaddress
 import json
 import logging
 import os
 import socket
 import sqlite3
+import sys
 import threading
 import time
 import uuid
@@ -35,8 +37,37 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from pydantic import BaseModel, Field
+
+
+def _load_sibling_module(name: str):
+    """Load a dashboard sibling under Hermes's file-based plugin contract."""
+    module_name = f"_hermes_security_workbench_dashboard_{name}"
+    existing = sys.modules.get(module_name)
+    if existing is not None:
+        return existing
+    path = Path(__file__).resolve().with_name(f"{name}.py")
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load dashboard module: {name}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+    return module
+
+
+_reporting = _load_sibling_module("reporting")
+ReportCaseNotFound = _reporting.ReportCaseNotFound
+export_csv = _reporting.export_csv
+export_json = _reporting.export_json
+export_markdown = _reporting.export_markdown
+report_filename = _reporting.report_filename
+report_summary = _reporting.report_summary
 
 router = APIRouter()
 
@@ -554,15 +585,72 @@ def list_findings(case_id: Optional[str] = None) -> List[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Reports / exports
+# ---------------------------------------------------------------------------
+def _report_or_404(builder, case_id: Optional[str]):
+    try:
+        return builder(str(_DB_PATH), case_id=case_id)
+    except ReportCaseNotFound as exc:
+        raise HTTPException(status_code=404, detail="case not found") from exc
+
+
+@router.get("/reports/summary")
+async def get_report_summary(case_id: Optional[str] = None) -> Dict[str, Any]:
+    """Return active case/job/finding totals and report breakdowns."""
+    return _report_or_404(report_summary, case_id)
+
+
+def _export_response(
+    report_format: str,
+    case_id: Optional[str],
+    media_type: str,
+) -> Response:
+    builders = {
+        "json": export_json,
+        "csv": export_csv,
+        "markdown": export_markdown,
+    }
+    content = _report_or_404(builders[report_format], case_id)
+    filename = report_filename(report_format, case_id)
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.get("/reports/json")
+async def export_report_json(case_id: Optional[str] = None) -> Response:
+    return _export_response("json", case_id, "application/json")
+
+
+@router.get("/reports/csv")
+async def export_report_csv(case_id: Optional[str] = None) -> Response:
+    return _export_response("csv", case_id, "text/csv")
+
+
+@router.get("/reports/markdown")
+async def export_report_markdown(case_id: Optional[str] = None) -> Response:
+    return _export_response("markdown", case_id, "text/markdown")
+
+
+# ---------------------------------------------------------------------------
 # Load extension modules (must come after _register is defined)
 # ---------------------------------------------------------------------------
 def _load_extension_modules() -> None:
-    from modules_recon import MODULES as RECON_MODULES
-    from modules_osint import MODULES as OSINT_MODULES
-    from modules_web import MODULES as WEB_MODULES
-    from modules_files import MODULES as FILES_MODULES
-    for meta in RECON_MODULES + OSINT_MODULES + WEB_MODULES + FILES_MODULES:
-        _register(meta)
+    module_names = (
+        "modules_recon", "modules_osint", "modules_web", "modules_files",
+    )
+    extension_modules = (
+        _load_sibling_module(name).MODULES for name in module_names
+    )
+    for modules in extension_modules:
+        for meta in modules:
+            _register(meta)
 
 
 _load_extension_modules()

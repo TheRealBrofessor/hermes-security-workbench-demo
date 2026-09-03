@@ -1,0 +1,145 @@
+.hsw-page {
+  margin: 0 auto;
+  max-width: 1080px;
+  padding: 2rem;
+}
+
+.hsw-header,
+.hsw-export {
+  align-items: flex-end;
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+}
+
+.hsw-header h1,
+.hsw-export h2,
+.hsw-breakdown h3 {
+  margin: 0;
+}
+
+.hsw-eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  margin: 0 0 0.4rem;
+  text-transform: uppercase;
+}
+
+.hsw-subtitle,
+.hsw-muted {
+  color: var(--muted-foreground);
+}
+
+.hsw-subtitle {
+  margin: 0.5rem 0 0;
+  max-width: 720px;
+}
+
+.hsw-case-filter {
+  display: grid;
+  flex: 0 0 260px;
+  font-size: 0.8rem;
+  gap: 0.4rem;
+}
+
+.hsw-case-filter select {
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  color: var(--foreground);
+  min-height: 2.25rem;
+  padding: 0 0.65rem;
+}
+
+.hsw-counts {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 2rem;
+}
+
+.hsw-count,
+.hsw-breakdown,
+.hsw-export {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  padding: 1.25rem;
+}
+
+.hsw-count {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.hsw-count strong {
+  font-size: 2rem;
+}
+
+.hsw-count span {
+  color: var(--muted-foreground);
+  text-transform: capitalize;
+}
+
+.hsw-breakdowns {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.hsw-breakdown ul {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.hsw-breakdown li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.35rem 0;
+}
+
+.hsw-export {
+  margin-top: 1rem;
+}
+
+.hsw-export p {
+  margin: 0.35rem 0 0;
+}
+
+.hsw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.hsw-error {
+  background: color-mix(in srgb, var(--destructive) 12%, transparent);
+  border: 1px solid var(--destructive);
+  border-radius: 0.5rem;
+  color: var(--destructive);
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+@media (max-width: 720px) {
+  .hsw-page {
+    padding: 1rem;
+  }
+
+  .hsw-header,
+  .hsw-export {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .hsw-case-filter {
+    flex-basis: auto;
+  }
+
+  .hsw-counts,
+  .hsw-breakdowns {
+    grid-template-columns: 1fr;
+  }
+}
