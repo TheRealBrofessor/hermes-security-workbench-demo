@@ -70,6 +70,11 @@ report_filename = _reporting.report_filename
 report_summary = _reporting.report_summary
 
 router = APIRouter()
+_pipeline_api = _load_sibling_module("pipeline_api")
+# FastAPI 0.139 stores ``include_router`` as a lazy ``_IncludedRouter`` entry.
+# Hermes imports this file-based plugin and inspects the concrete route list, so
+# flatten the already-prefixed pipeline routes at this seam instead.
+router.routes.extend(_pipeline_api.router.routes)
 
 # ---------------------------------------------------------------------------
 # Paths / logging
@@ -643,7 +648,7 @@ async def export_report_markdown(case_id: Optional[str] = None) -> Response:
 # ---------------------------------------------------------------------------
 def _load_extension_modules() -> None:
     module_names = (
-        "modules_recon", "modules_osint", "modules_web", "modules_files",
+        "modules_recon", "modules_osint", "modules_web", "modules_files", "modules_vuln",
     )
     extension_modules = (
         _load_sibling_module(name).MODULES for name in module_names

@@ -8,18 +8,32 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-import dns.exception
-import dns.reversename
-import dns.resolver
+try:
+    import dns.exception
+    import dns.reversename
+    import dns.resolver
+except ModuleNotFoundError:  # pragma: no cover - exercised in dependency-light hosts
+    dns = None  # type: ignore[assignment]
 
 _DEFAULT_SUBDOMAINS = [
     "www", "mail", "ftp", "admin", "api", "blog", "dev", "test",
     "staging", "vpn", "remote", "mx", "ns1", "ns2", "pop",
 ]
 
-_resolver = dns.resolver.Resolver()
-_resolver.lifetime = 5.0
-_resolver.timeout = 5.0
+_resolver = None
+if dns is not None:
+    _resolver = dns.resolver.Resolver()
+    _resolver.lifetime = 5.0
+    _resolver.timeout = 5.0
+
+
+def _dependency_missing(target: str) -> List[Dict[str, Any]]:
+    return [_ok(
+        "dns_dependency_missing",
+        target,
+        "dnspython is not installed in the active Hermes runtime",
+        {"dependency": "dnspython", "install_hint": "hermes pm install"},
+    )]
 
 
 def _ok(rtype: str, target: str, value: str, extra: Dict[str, Any] | None = None) -> Dict[str, Any]:
@@ -35,6 +49,8 @@ def _ok(rtype: str, target: str, value: str, extra: Dict[str, Any] | None = None
 
 
 async def _run_dns_lookup(target: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if dns is None or _resolver is None:
+        return _dependency_missing(target)
     rtypes = params.get("types", "A,AAAA,MX,NS,TXT,CNAME")
     out: List[Dict[str, Any]] = []
     for rtype in (r.strip().upper() for r in str(rtypes).split(",")):
@@ -44,14 +60,16 @@ async def _run_dns_lookup(target: str, params: Dict[str, Any]) -> List[Dict[str,
             answers = _resolver.resolve(target, rtype)
             for ans in answers:
                 out.append(_ok(f"dns_{rtype}", target, str(ans)))
-        except dns.resolver.NoAnswer:
-            continue
-        except (dns.exception.DNSException, Exception):  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            if dns is not None and isinstance(exc, dns.resolver.NoAnswer):
+                continue
             out.append(_ok("dns_error", target, f"{rtype}: query failed", {"rtype": rtype}))
     return out
 
 
 async def _run_subdomain_enum(target: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if dns is None or _resolver is None:
+        return _dependency_missing(target)
     words = params.get("wordlist") or _DEFAULT_SUBDOMAINS
     out: List[Dict[str, Any]] = []
     for word in words:
@@ -60,28 +78,32 @@ async def _run_subdomain_enum(target: str, params: Dict[str, Any]) -> List[Dict[
             answers = _resolver.resolve(host, "A")
             ips = [str(a) for a in answers]
             out.append(_ok("subdomain", host, host, {"ip": ips}))
-        except (dns.exception.DNSException, Exception):  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             continue
     return out
 
 
 async def _run_reverse_dns(target: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if dns is None or _resolver is None:
+        return _dependency_missing(target)
     try:
         rev = dns.reversename.from_address(target)
         answers = _resolver.resolve(rev, "PTR")
         return [_ok("ptr", target, str(a), {"ip": target}) for a in answers]
-    except (dns.exception.DNSException, Exception):  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         return [_ok("ptr_error", target, "reverse lookup failed", {"ip": target})]
 
 
 async def _run_whois_lookup(target: str, params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if dns is None or _resolver is None:
+        return _dependency_missing(target)
     out: List[Dict[str, Any]] = []
     for rtype in ("SOA", "NS"):
         try:
             answers = _resolver.resolve(target, rtype)
             for ans in answers:
                 out.append(_ok(rtype.lower(), target, str(ans)))
-        except (dns.exception.DNSException, Exception):  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             out.append(_ok("dns_error", target, f"{rtype}: query failed", {"rtype": rtype}))
     return out
 

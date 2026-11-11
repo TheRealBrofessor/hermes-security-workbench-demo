@@ -3,8 +3,11 @@ version: 0.2.0
 description: "Modular security research workbench — scoped cases, safety-classified jobs, normalized findings, report summaries, and safe JSON/CSV/Markdown exports."
 author: "Professor, Hermes Agent"
 platforms: [linux, macos, windows]
+python_dependencies:
+  - "dnspython>=2.6,<3"
 provides_tools:
   - workbench_health
   - workbench_case
   - workbench_job
   - workbench_portscan
+  - workbench_demo

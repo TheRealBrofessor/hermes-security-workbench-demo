@@ -36,7 +36,7 @@ def _load_root_plugin():
         sys.modules.pop(module_name, None)
 
 
-def test_registers_declared_tools_and_marks_only_portscan_async():
+def test_registers_declared_tools_and_marks_async_handlers():
     plugin = _load_root_plugin()
     context = RecordingContext()
 
@@ -48,10 +48,35 @@ def test_registers_declared_tools_and_marks_only_portscan_async():
         "workbench_case",
         "workbench_job",
         "workbench_portscan",
+        "workbench_demo",
     }
     assert by_name["workbench_portscan"]["is_async"] is True
+    assert by_name["workbench_demo"]["is_async"] is True
     assert all(
         tool.get("is_async", False) is False
         for name, tool in by_name.items()
-        if name != "workbench_portscan"
+        if name not in {"workbench_portscan", "workbench_demo"}
     )
+
+
+def test_registered_handlers_execute_against_isolated_backend(tmp_path, monkeypatch):
+    monkeypatch.setenv("WORKBENCH_DIR", str(tmp_path / "workbench"))
+    plugin = _load_root_plugin()
+    context = RecordingContext()
+    plugin.register(context)
+    by_name = {tool["name"]: tool for tool in context.tools}
+
+    health = by_name["workbench_health"]["handler"]({})
+    created = by_name["workbench_case"]["handler"]({
+        "action": "create",
+        "name": "Loopback Lab",
+        "scope": [{"kind": "ip", "value": "127.0.0.1"}],
+    })
+    cases = by_name["workbench_case"]["handler"]({"action": "list"})
+    jobs = by_name["workbench_job"]["handler"]({"action": "list"})
+
+    assert health["ok"] is True
+    assert health["modules_available"]
+    assert created["id"]
+    assert cases[0]["scope"] == [{"kind": "ip", "value": "127.0.0.1"}]
+    assert jobs == []

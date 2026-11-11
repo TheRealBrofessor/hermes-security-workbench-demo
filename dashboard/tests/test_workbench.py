@@ -16,6 +16,7 @@ import importlib.util
 import io
 import json
 import os
+import sqlite3
 import sys
 import tempfile
 from pathlib import Path
@@ -490,3 +491,41 @@ def test_plugin_loads_through_hermes_file_contract():
         assert "/reports/markdown" in paths
     finally:
         sys.modules.pop(module_name, None)
+
+
+def test_authorized_pipeline_routes_read_canonical_database_without_writes(client, tmp_path, monkeypatch):
+    pipeline_db = tmp_path / "pipeline.db"
+    connection = sqlite3.connect(pipeline_db)
+    connection.executescript(
+        """
+        CREATE TABLE runs (run_id TEXT, program TEXT, observed_at TEXT, status TEXT);
+        CREATE TABLE assets (asset_id TEXT, asset TEXT, last_seen TEXT);
+        CREATE TABLE asset_changes (change_id TEXT, run_id TEXT, classification TEXT, change_key TEXT);
+        CREATE TABLE routes (route_id TEXT, recommended_skill TEXT, endpoint TEXT, reason TEXT, status TEXT);
+        CREATE TABLE findings (finding_id TEXT, status TEXT, title TEXT, updated_at TEXT);
+        CREATE TABLE validations (validation_id TEXT, finding_id TEXT, verdict TEXT, reason TEXT, created_at TEXT);
+        CREATE TABLE manual_reviews (review_id TEXT, finding_id TEXT, state TEXT, reviewer TEXT, updated_at TEXT);
+        CREATE TABLE notifications (notification_id TEXT);
+        CREATE TABLE activity_events (event_hash TEXT, event_type TEXT, target TEXT, reason TEXT, timestamp TEXT);
+        INSERT INTO runs VALUES ('run-1', 'loopback-lab', '2026-09-28T00:00:00+00:00', 'COMPLETED');
+        INSERT INTO assets VALUES ('asset-1', '127.0.0.1', '2026-09-28T00:00:00+00:00');
+        INSERT INTO asset_changes VALUES ('change-1', 'run-1', 'NEW_ASSET', '127.0.0.1');
+        INSERT INTO activity_events VALUES ('hash-1', 'SCOPE_REJECTED', 'example.invalid', 'no include rule matched', '2026-09-28T00:00:00+00:00');
+        """
+    )
+    connection.commit()
+    before = pipeline_db.read_bytes()
+    connection.close()
+    monkeypatch.setattr(api._pipeline_api, "_PIPELINE_DB", pipeline_db)
+
+    summary = client.get(f"{API_PREFIX}/pipeline/summary")
+    changes = client.get(f"{API_PREFIX}/pipeline/changes")
+    violations = client.get(f"{API_PREFIX}/pipeline/scope-violations")
+
+    assert summary.status_code == 200
+    assert summary.json()["read_only"] is True
+    assert summary.json()["counts"]["runs"] == 1
+    assert changes.json()[0]["classification"] == "NEW_ASSET"
+    assert violations.json()[0]["event_type"] == "SCOPE_REJECTED"
+    assert pipeline_db.read_bytes() == before
+
